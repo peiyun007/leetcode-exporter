@@ -9,7 +9,7 @@ from string import Template
 # Store the value of you cookies in 'cookies.txt'
 COOKIES = open('cookies.txt', 'r').read().strip().replace('cookie: ', '', 1)
 # Change output dir if you like
-LEETCODE_DIR = '../leetcode-solutions'
+LEETCODE_DIR = '../leetcode-solutions-py'
 # Change how many days to look back
 DAYS_TO_IMPORT=365*100
 SUBMISSIONS_URL = 'https://leetcode.com/api/submissions/?offset={}&limit={}'
@@ -72,13 +72,17 @@ def question_data(slug):
 
 def get_submissions(batch_size=20):
     """Gets all submissions in `batch_size` chunks"""
-    offset = 0
+    offset = 1351
     while True:
         print(f"getting batch #{offset + 1}")
         response = requests.get(
             SUBMISSIONS_URL.format(offset, batch_size), 
             headers={'Cookie': COOKIES})
-        json_response = response.json()
+        try:
+            json_response = response.json()
+        except requests.exceptions.JSONDecodeError:
+            offset += 1
+            continue
         if 'detail' in json_response:
             print(json_response['detail'])
         if 'submissions_dump' in json_response:
@@ -97,8 +101,16 @@ def add_description(submission):
         GRAPHQL_URL, 
         json=question_data(slug),
         headers={'Cookie': COOKIES})
-    json_response = response.json()
+    try:
+        json_response = response.json()
+    except requests.exceptions.JSONDecodeError:
+        print("VIGOSS>>>")
+        json_response = None
     problem_url = PROBLEM_URL.format(slug)
+    if json_response is None or json_response['data'] is None or json_response['data']['question'] is None or json_response['data']['question']['questionFrontendId'] is None:
+        slug = "99999" + "-" + slug
+        return {**submission, 'err': 'VIGOSS', 'slug': slug, 'problem_url': problem_url} 
+    slug = json_response['data']['question']['questionFrontendId'].zfill(4) + "-" + slug
     return {**submission, **json_response['data']['question'], 'slug': slug, 'problem_url': problem_url}
 
 
@@ -145,4 +157,5 @@ recent_submissions = takewhile(is_recent, submissions)
 accepted_submissions = filter(is_accepted, recent_submissions)
 accepted_submissions_details = map(add_description, accepted_submissions)
 for solution in accepted_submissions_details:
-    store_solution(solution)
+    if not solution['slug'].startswith("99999"):   
+        store_solution(solution)
